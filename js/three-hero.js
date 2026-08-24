@@ -6,10 +6,55 @@
 (function () {
   'use strict';
 
+  // Shared 3D Helper Functions for all scenes
+  if (!window.resizeThreeRenderer) {
+    window.resizeThreeRenderer = function (renderer, camera, container, composer) {
+      if (!renderer || !camera || !container) return { width: 0, height: 0 };
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (width === 0 || height === 0) return { width, height };
+
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+      if (composer && typeof composer.setSize === 'function') {
+        composer.setSize(width, height);
+      }
+
+      return { width, height };
+    };
+  }
+
+  if (!window.setupThreeResizeObserver) {
+    window.setupThreeResizeObserver = function (renderer, camera, container, onResizeCallback, composer) {
+      if (!container) return;
+
+      const handleResize = () => {
+        const dims = window.resizeThreeRenderer(renderer, camera, container, composer);
+        if (typeof onResizeCallback === 'function') {
+          onResizeCallback(dims.width, dims.height);
+        }
+      };
+
+      handleResize();
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => handleResize());
+        ro.observe(container);
+      } else {
+        window.addEventListener('resize', handleResize);
+      }
+      window.addEventListener('orientationchange', handleResize);
+    };
+  }
+
   let scene, camera, renderer;
   let cementBagsGroup, tmtBundleGroup, steelRodsGroup, concreteGroup, particles;
   let mouseX = 0, mouseY = 0;
   let targetX = 0, targetY = 0;
+  let isVisible = true;
 
   function startHero() {
     const container = document.getElementById('hero-canvas');
@@ -43,8 +88,8 @@
 
     // 3. Renderer setup
     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
@@ -259,12 +304,34 @@
     createFloatingParticles();
 
     // Event Listeners
-    window.addEventListener('resize', onWindowResize);
     document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
 
-    // Adjust for mobile screens
-    if (window.innerWidth < 992) {
-      mainHeroGroup.position.set(0, -1.8, -2);
+    // Setup shared ResizeObserver helper
+    window.setupThreeResizeObserver(renderer, camera, container, (w, h) => {
+      const group = scene.children.find(c => c.type === 'Group');
+      if (group) {
+        if (w < 600) {
+          group.position.set(0, -1.8, -2.5);
+          camera.position.set(0, 2.5, 12.5);
+        } else if (w < 992) {
+          group.position.set(0, -1.8, -2);
+          camera.position.set(0, 2.5, 11);
+        } else {
+          group.position.set(2.8, -0.5, 0);
+          camera.position.set(0, 2.5, 11);
+        }
+      }
+    });
+
+    // Pause animation when completely off-screen
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          isVisible = entry.isIntersecting || entry.intersectionRatio > 0;
+        });
+      }, { threshold: 0 });
+      observer.observe(container);
     }
   }
 
@@ -385,27 +452,20 @@
     mouseY = (event.clientY - window.innerHeight / 2) * 0.001;
   }
 
-  function onWindowResize() {
-    if (!container) return;
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-
-    // Adjust position on screen resize
-    const mainHeroGroup = scene.children.find(c => c.type === 'Group');
-    if (mainHeroGroup) {
-      if (window.innerWidth < 992) {
-        mainHeroGroup.position.set(0, -1.8, -2);
-      } else {
-        mainHeroGroup.position.set(2.8, -0.5, 0);
-      }
+  function onTouchMove(event) {
+    if (event.touches && event.touches.length > 0) {
+      const touch = event.touches[0];
+      mouseX = (touch.clientX - window.innerWidth / 2) * 0.0015;
+      mouseY = (touch.clientY - window.innerHeight / 2) * 0.0015;
     }
   }
 
   function animate() {
     requestAnimationFrame(animate);
 
-    // Smooth camera / group rotation based on mouse
+    if (!isVisible || document.hidden) return;
+
+    // Smooth camera / group rotation based on mouse or touch
     targetX += (mouseX - targetX) * 0.05;
     targetY += (mouseY - targetY) * 0.05;
 
@@ -415,10 +475,13 @@
     }
 
     const mainHeroGroup = scene.children.find(c => c.type === 'Group');
-    if (mainHeroGroup && mainHeroGroup.userData.logoGroup) {
-      const t = Date.now() * 0.0015;
-      mainHeroGroup.userData.logoGroup.rotation.y = Math.sin(t * 0.5) * 0.35;
-      mainHeroGroup.userData.logoGroup.position.y = 2.2 + Math.sin(t * 1.5) * 0.15;
+    if (mainHeroGroup) {
+      mainHeroGroup.rotation.y += 0.003; // Continuous 3D scene ambient rotation
+      if (mainHeroGroup.userData.logoGroup) {
+        const t = Date.now() * 0.0015;
+        mainHeroGroup.userData.logoGroup.rotation.y = Math.sin(t * 0.5) * 0.35;
+        mainHeroGroup.userData.logoGroup.position.y = 2.2 + Math.sin(t * 1.5) * 0.15;
+      }
     }
 
     if (particles) {
@@ -433,3 +496,4 @@
     renderer.render(scene, camera);
   }
 })();
+

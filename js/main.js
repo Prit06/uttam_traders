@@ -326,13 +326,17 @@
   function initMobileNav() {
     if (!hamburger || !navMenu) return;
     hamburger.addEventListener('click', () => {
-      navMenu.classList.toggle('active');
+      const isActive = navMenu.classList.toggle('active');
+      hamburger.classList.toggle('active', isActive);
+      document.body.style.overflow = isActive ? 'hidden' : '';
     });
 
     // Close mobile nav on click link
     document.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', () => {
         navMenu.classList.remove('active');
+        hamburger.classList.remove('active');
+        document.body.style.overflow = '';
       });
     });
   }
@@ -449,6 +453,7 @@
     document.getElementById('modal-wa-btn').href = `https://wa.me/919624359317?text=${waText}`;
 
     modalOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
   };
 
   // Close Modals setup
@@ -456,12 +461,16 @@
     btn.addEventListener('click', () => {
       if (modalOverlay) modalOverlay.classList.remove('active');
       if (lightboxModal) lightboxModal.classList.remove('active');
+      document.body.style.overflow = '';
     });
   });
 
   if (modalOverlay) {
     modalOverlay.addEventListener('click', (e) => {
-      if (e.target === modalOverlay) modalOverlay.classList.remove('active');
+      if (e.target === modalOverlay) {
+        modalOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+      }
     });
   }
 
@@ -485,11 +494,15 @@
     if (!lightboxModal) return;
     document.getElementById('lightbox-img').src = imgSrc;
     lightboxModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
   };
 
   if (lightboxModal) {
     lightboxModal.addEventListener('click', (e) => {
-      if (e.target === lightboxModal) lightboxModal.classList.remove('active');
+      if (e.target === lightboxModal) {
+        lightboxModal.classList.remove('active');
+        document.body.style.overflow = '';
+      }
     });
   }
 
@@ -510,14 +523,20 @@
       calcForm.reset();
       
       const quoteModal = document.getElementById('quote-modal-wrap');
-      if (quoteModal) quoteModal.classList.remove('active');
+      if (quoteModal) {
+        quoteModal.classList.remove('active');
+        document.body.style.overflow = '';
+      }
     });
   }
 
   // Global Quote Modal Open helper
   window.openQuoteModal = function () {
     const quoteModal = document.getElementById('quote-modal-wrap');
-    if (quoteModal) quoteModal.classList.add('active');
+    if (quoteModal) {
+      quoteModal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
   };
 
   // Animated Statistics Counter

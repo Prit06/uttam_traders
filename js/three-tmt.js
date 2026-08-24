@@ -8,6 +8,7 @@
 
   let scene, camera, renderer, tmtGroup;
   let mouseX = 0, mouseY = 0;
+  let isVisible = true;
 
   function startTMT() {
     const container = document.getElementById('tmt-canvas');
@@ -38,8 +39,8 @@
     camera.position.set(0, 0, 7);
 
     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
 
@@ -62,7 +63,6 @@
     const steelTex = createSteelTex();
 
     // Create 19 steel bars arranged in hexagonal cylinder formation
-    const rings = 2;
     const barRadius = 0.12;
     const barLen = 5.0;
 
@@ -80,7 +80,6 @@
     tmtGroup.add(centerBar);
 
     // Outer rings
-    let count = 6;
     for (let r = 1; r <= 2; r++) {
       const radiusStep = r * 0.28;
       const numBars = r * 6;
@@ -115,12 +114,43 @@
     tmtGroup.rotation.z = Math.PI / 4;
     tmtGroup.rotation.x = 0.4;
 
-    window.addEventListener('resize', onResize);
+    // Setup Shared Resize Observer
+    if (window.setupThreeResizeObserver) {
+      window.setupThreeResizeObserver(renderer, camera, container, (w, h) => {
+        if (camera) {
+          if (w < 500) {
+            camera.position.set(0, 0, 8.5);
+          } else {
+            camera.position.set(0, 0, 7);
+          }
+        }
+      });
+    }
+
+    // Visibility Observer
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          isVisible = entry.isIntersecting || entry.intersectionRatio > 0;
+        });
+      }, { threshold: 0 });
+      observer.observe(container);
+    }
+
     container.addEventListener('mousemove', (e) => {
       const rect = container.getBoundingClientRect();
       mouseX = (e.clientX - rect.left - rect.width / 2) * 0.002;
       mouseY = (e.clientY - rect.top - rect.height / 2) * 0.002;
     });
+
+    container.addEventListener('touchmove', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        const rect = container.getBoundingClientRect();
+        const touch = e.touches[0];
+        mouseX = (touch.clientX - rect.left - rect.width / 2) * 0.003;
+        mouseY = (touch.clientY - rect.top - rect.height / 2) * 0.003;
+      }
+    }, { passive: true });
   }
 
   function createSteelTex() {
@@ -143,15 +173,10 @@
     return new THREE.CanvasTexture(canvas);
   }
 
-  function onResize() {
-    if (!container) return;
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-  }
-
   function animate() {
     requestAnimationFrame(animate);
+
+    if (!isVisible || document.hidden) return;
 
     if (tmtGroup) {
       tmtGroup.rotation.y += 0.008;
@@ -161,3 +186,4 @@
     renderer.render(scene, camera);
   }
 })();
+

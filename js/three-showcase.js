@@ -9,6 +9,7 @@
   let scene, camera, renderer, raycaster, mouse;
   let bagOPC, bagPPC, bagPSC;
   let activeSelectedMesh = null;
+  let isVisible = true;
 
   const CEMENT_DATA = {
     'OPC': {
@@ -66,8 +67,8 @@
 
     // 3. Renderer
     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     container.innerHTML = ''; // clear any prior fallback text
     container.appendChild(renderer.domElement);
@@ -121,7 +122,31 @@
     // 8. Event Listeners
     container.addEventListener('click', onCanvasClick);
     container.addEventListener('mousemove', onCanvasHover);
-    window.addEventListener('resize', () => onResize(container));
+
+    // Setup Shared Resize Observer
+    if (window.setupThreeResizeObserver) {
+      window.setupThreeResizeObserver(renderer, camera, container, (w, h) => {
+        if (camera) {
+          if (w < 500) {
+            camera.position.set(0, 3.4, 12.5);
+          } else if (w < 768) {
+            camera.position.set(0, 3.2, 10.5);
+          } else {
+            camera.position.set(0, 3, 9);
+          }
+        }
+      });
+    }
+
+    // Visibility Observer
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          isVisible = entry.isIntersecting || entry.intersectionRatio > 0;
+        });
+      }, { threshold: 0 });
+      observer.observe(container);
+    }
 
     // Setup Close Button for Info Panel
     const closeBtn = document.getElementById('panel-close-btn');
@@ -275,17 +300,10 @@
     panel.classList.add('active');
   }
 
-  function onResize(container) {
-    if (!container || !camera || !renderer) return;
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 550;
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    renderer.setSize(width, height);
-  }
-
   function animate() {
     requestAnimationFrame(animate);
+
+    if (!isVisible || document.hidden) return;
 
     const time = Date.now() * 0.001;
 
@@ -297,3 +315,4 @@
     if (renderer && scene && camera) renderer.render(scene, camera);
   }
 })();
+
